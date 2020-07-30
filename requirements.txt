@@ -2,3 +2,4 @@ scapy
 tabulate
 peewee
 requests
+boto3
