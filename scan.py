@@ -5,6 +5,7 @@ import socket
 import boto3
 import os
 import external
+import argparse
 
 from typing import Optional, List
 from scapy.all import arping, ARP, Ether
@@ -82,7 +83,7 @@ def __save_scan_data_to_dynamo_db(scan: Scan):
 
     return response
 
-def scan_network_repeatedly(network_id: str, delay: int, amount: Optional[int], verbose: bool = False):
+def scan_network_repeatedly(user: str, network_id: str, delay: int, amount: Optional[int], verbose: bool = False):
     """ Repeatedly scan the provided network """
 
     scan_count = 0
@@ -93,7 +94,7 @@ def scan_network_repeatedly(network_id: str, delay: int, amount: Optional[int], 
     while True:
         scan_data = __scan_network(network_id, verbose)
         speed_test_data = __speed_test_network()
-        scan = Scan(scan_data, os.environ['USER'], network_id, time.time(), speed_test_data)
+        scan = Scan(scan_data, user, network_id, time.time(), speed_test_data)
 
         __save_scan_data_to_dynamo_db(scan)
         scan_count += 1
@@ -113,4 +114,13 @@ def scan_network_repeatedly(network_id: str, delay: int, amount: Optional[int], 
             break
 
 if __name__ == "__main__":
-    scan_network_repeatedly("192.168.1.0/24", 10, 5)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-u", "--user", help="user id associated with network", default=os.environ['USER'])
+    parser.add_argument("-n", "--network", help="network id", default="192.168.1.0/24")
+    parser.add_argument("-d", "--delay", help="delay in seconds between scans", type=int, default=10)
+    parser.add_argument("-a", "--amount", help="number of scans, defaults to infinite", type=int, default=None)
+    args = parser.parse_args()
+    try:
+        scan_network_repeatedly(args.user, args.network, args.delay, args.amount)
+    except KeyboardInterrupt:
+      print('stopped')

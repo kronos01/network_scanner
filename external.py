@@ -1,7 +1,8 @@
 import requests
+import time
 
 
-def get_mac_address_vendor(mac_address: str) -> str:
+def get_mac_address_vendor(mac_address: str, retries: int = 10) -> str:
     """  """
     # Can also use https://macvendors.co/api/{mac_address} for a richer payload
     prefix = ''.join(mac_address.split(':')[0:3])
@@ -9,4 +10,8 @@ def get_mac_address_vendor(mac_address: str) -> str:
 
     if response.status_code == 200:
         return response.text
-    return ""
+    elif retries <= 0:
+        return ""
+    else:
+        time.sleep(0.5)
+        return get_mac_address_vendor(mac_address, retries - 1)
