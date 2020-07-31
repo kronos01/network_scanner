@@ -16,6 +16,7 @@ class Device:
     mac_address: str
     ip_address: str
     hostname: str
+    aliases: List[str]
     vendor: str
 
 @dataclasses.dataclass
@@ -34,9 +35,9 @@ def __scan_network(network_id: str, verbose: bool) -> List[Device]:
     for s, r in answered:
         mac_address = r[Ether].src
         ip_address = s[ARP].pdst
-        hostname = socket.getfqdn(ip_address)
+        hostname, aliases, _ = socket.gethostbyaddr(ip_address)
 
-        scan_data.append(Device(mac_address, ip_address, hostname, external.get_mac_address_vendor(mac_address)))
+        scan_data.append(Device(mac_address, ip_address, hostname, aliases, external.get_mac_address_vendor(mac_address)))
 
     return scan_data
 
@@ -54,8 +55,8 @@ def __speed_test_network() -> dict:
 def __save_scan_data_to_dynamo_db(scan: Scan):
     dynamodb = boto3.resource('dynamodb')
 
-    table = dynamodb.Table('Scans')
-    response = table.put_item(
+    scans_table = dynamodb.Table('Scans')
+    response = scans_table.put_item(
         Item={
             'id': scan.user + '-' + scan.network_id,
             'timestamp': int(scan.timestamp),
@@ -64,6 +65,7 @@ def __save_scan_data_to_dynamo_db(scan: Scan):
                 'mac_address': d.mac_address,
                 'ip_address': d.ip_address,
                 'hostname': d.hostname,
+                'aliases': d.aliases,
                 'vendor': d.vendor
             } for d in scan.devices],
             # network speed test
@@ -80,6 +82,27 @@ def __save_scan_data_to_dynamo_db(scan: Scan):
             }
         }
     )
+
+    devices_table = dynamodb.Table('Devices')
+    for device in scan.devices:
+        tokens = device.hostname.split('s-', 1)
+        checker = lambda t: len(t) == 2 and len(t[0]) > 0
+        
+        owner, deviceType = tokens if checker(tokens) else ['', '']
+
+        response = devices_table.put_item(
+            Item={
+                'mac_address': device.mac_address,
+                'ip_address': device.ip_address,
+                'hostname': device.hostname,
+                'aliases': device.aliases,
+                'vendor': device.vendor,
+                'last_seen': int(scan.timestamp),
+                'owner': owner,
+                'deviceType': deviceType,
+                'verified': False
+            }
+        )
 
     return response
 
