@@ -3,3 +3,4 @@ tabulate
 peewee
 requests
 boto3
+speedtest-cli
